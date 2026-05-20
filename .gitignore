@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+__pycache__/
+*.pyc
+*.pyo
+.next/
+out/
+postgres_data/
+jenkins_data/
+*.log
+.DS_Store
+dist/
+build/
