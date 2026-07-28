@@ -93,7 +93,10 @@ export function DashboardHeader({ onToggleSidebar }: DashboardHeaderProps) {
       {/* Right side */}
       <div className="flex items-center gap-2">
         {/* Notification bell */}
-        <button className="relative p-2 rounded-xl hover:bg-[#162d1e] transition-colors">
+        <button 
+          onClick={() => router.push("/dashboard/notifications")}
+          className="relative p-2 rounded-xl hover:bg-[#162d1e] transition-colors"
+        >
           <Bell className="h-5 w-5 text-gray-400" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#0f2318]" />
         </button>

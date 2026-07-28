@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAppStore";
 import { useTrips } from "@/hooks/useApi";
-import { tripApi } from "@/lib/api";
+import { tripApi, driverApi } from "@/lib/api";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Truck, Package, MapPin, Clock, Navigation, IndianRupee, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Truck, Package, MapPin, Clock, Navigation, IndianRupee, CheckCircle2, Loader2, AlertCircle, Wifi, WifiOff } from "lucide-react";
 
-const DARK_THEME_BG = "bg-[linear-gradient(135deg,#0d2d1a_0%,#0f2a1d_25%,#1a1200_75%,#1a1200_100%)]";
-const GLASS_CARD = "border border-white/10 bg-white/5 backdrop-blur-xl rounded-2xl";
+const DARK_THEME_BG = "bg-[#0f2318]";
+const GLASS_CARD = "border border-[#1e4029] bg-[#162d1e] rounded-2xl";
 
 export default function DriverDashboardPage() {
   const router = useRouter();
@@ -19,6 +19,33 @@ export default function DriverDashboardPage() {
   const { data: trips, isLoading, refetch } = useTrips();
   const [startingTrip, setStartingTrip] = useState<string | null>(null);
   const [tripStarted, setTripStarted] = useState<string | null>(null);
+  const [driverOnline, setDriverOnline] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  useEffect(() => {
+    fetchDriverStatus();
+  }, []);
+
+  const fetchDriverStatus = async () => {
+    try {
+      const status = await driverApi.getStatus();
+      setDriverOnline(status.online);
+    } catch (error) {
+      console.error("Failed to fetch driver status:", error);
+    }
+  };
+
+  const toggleDriverStatus = async () => {
+    setUpdatingStatus(true);
+    try {
+      await driverApi.updateStatus({ online: !driverOnline });
+      setDriverOnline(!driverOnline);
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -72,30 +99,66 @@ export default function DriverDashboardPage() {
 
   return (
     <div className={cn("min-h-screen pb-24", DARK_THEME_BG)}>
+      {/* Driver Availability Toggle */}
+      <div className="mb-6 p-4 rounded-2xl border border-[#1e4029] bg-[#162d1e] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-12 h-12 rounded-xl flex items-center justify-center",
+            driverOnline ? "bg-green-500/20" : "bg-gray-600/20"
+          )}>
+            {driverOnline ? (
+              <Wifi className="h-6 w-6 text-green-400" />
+            ) : (
+              <WifiOff className="h-6 w-6 text-gray-400" />
+            )}
+          </div>
+          <div>
+            <p className="text-white font-medium">
+              {driverOnline ? "You're Online" : "You're Offline"}
+            </p>
+            <p className="text-gray-400 text-sm">
+              {driverOnline ? "Available for new trips" : "Not receiving trip requests"}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={toggleDriverStatus}
+          disabled={updatingStatus}
+          className={cn(
+            "px-6 py-3 rounded-xl font-medium transition-all",
+            driverOnline 
+              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" 
+              : "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+          )}
+        >
+          {updatingStatus ? "Updating..." : driverOnline ? "Go Offline" : "Go Online"}
+        </button>
+      </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className={GLASS_CARD}>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-green-400">{activeTrips.length}</p>
-            <p className="text-sm text-slate-400">Active Trips</p>
+            <p className="text-sm text-gray-400">Active Trips</p>
           </CardContent>
         </Card>
         <Card className={GLASS_CARD}>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-green-400">{totalDeliveries}</p>
-            <p className="text-sm text-slate-400">Completed</p>
+            <p className="text-sm text-gray-400">Completed</p>
           </CardContent>
         </Card>
         <Card className={GLASS_CARD}>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-amber-400">{formatCurrency(totalEarnings)}</p>
-            <p className="text-sm text-slate-400">Total Earnings</p>
+            <p className="text-sm text-gray-400">Total Earnings</p>
           </CardContent>
         </Card>
         <Card className={GLASS_CARD}>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-purple-400">{trips?.length || 0}</p>
-            <p className="text-sm text-slate-400">Total Trips</p>
+            <p className="text-sm text-gray-400">Total Trips</p>
           </CardContent>
         </Card>
       </div>
@@ -112,7 +175,7 @@ export default function DriverDashboardPage() {
           {isLoading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-green-500" /></div>
           ) : activeTrips.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-gray-400">
               <Truck className="h-16 w-16 mx-auto mb-4 text-slate-600" />
               <p className="text-lg font-medium text-slate-300">No active trips</p>
               <p className="text-sm">Check back soon for new assignments</p>
@@ -128,25 +191,25 @@ export default function DriverDashboardPage() {
                         {trip.status.replace("_", " ")}
                       </span>
                     </div>
-                    {trip.truck && <span className="text-sm text-slate-400">{trip.truck.registration_number}</span>}
+                    {trip.truck && <span className="text-sm text-gray-400">{trip.truck.registration_number}</span>}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-slate-400" />
+                      <Package className="h-4 w-4 text-gray-400" />
                       <span className="text-slate-300">{trip.total_weight_kg}kg</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Navigation className="h-4 w-4 text-slate-400" />
+                      <Navigation className="h-4 w-4 text-gray-400" />
                       <span className="text-slate-300">{trip.total_distance_km} km</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <IndianRupee className="h-4 w-4 text-slate-400" />
+                      <IndianRupee className="h-4 w-4 text-gray-400" />
                       <span className="text-amber-400">{formatCurrency(trip.total_fare || 0)}</span>
                     </div>
                     {trip.scheduled_pickup_start && (
                       <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-slate-400" />
+                        <Clock className="h-4 w-4 text-gray-400" />
                         <span className="text-slate-300">{formatDateTime(trip.scheduled_pickup_start)}</span>
                       </div>
                     )}
@@ -154,7 +217,7 @@ export default function DriverDashboardPage() {
 
                   {trip.trip_loads && trip.trip_loads.length > 0 && (
                     <div className="mt-4 pt-3 border-t border-white/10">
-                      <p className="text-xs font-medium text-slate-400 mb-2">Pickup sequence:</p>
+                      <p className="text-xs font-medium text-gray-400 mb-2">Pickup sequence:</p>
                       <div className="space-y-2">
                         {trip.trip_loads
                           .sort((a, b) => (a.pickup_sequence || 0) - (b.pickup_sequence || 0))
@@ -216,7 +279,7 @@ export default function DriverDashboardPage() {
                 <div key={trip.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
                   <div>
                     <p className="font-medium text-slate-100">{trip.mandi_destination}</p>
-                    <p className="text-sm text-slate-400">{trip.total_weight_kg}kg • {trip.total_distance_km}km</p>
+                    <p className="text-sm text-gray-400">{trip.total_weight_kg}kg • {trip.total_distance_km}km</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-green-400">{formatCurrency(trip.total_fare || 0)}</p>

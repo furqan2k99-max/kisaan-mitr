@@ -429,3 +429,105 @@ export const mandiPricesApi = {
     return data;
   },
 };
+
+export interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  created_at: string;
+}
+
+export const notificationsApi = {
+  list: async (params: { skip?: number; limit?: number } = {}) => {
+    const { data } = await api.get<Notification[]>("/notifications", { params });
+    return data;
+  },
+  getUnreadCount: async () => {
+    const { data } = await api.get<{ unread_count: number }>("/notifications/unread-count");
+    return data;
+  },
+  markAsRead: async (id: number) => {
+    await api.post(`/notifications/${id}/read`);
+  },
+  markAllAsRead: async () => {
+    await api.post("/notifications/read-all");
+  },
+  delete: async (id: number) => {
+    await api.delete(`/notifications/${id}`);
+  },
+};
+
+export interface PriceAlert {
+  id: number;
+  commodity: string;
+  state?: string;
+  target_price: number;
+  is_active: boolean;
+  triggered_at?: string;
+  created_at: string;
+}
+
+export const priceAlertsApi = {
+  list: async () => {
+    const { data } = await api.get<PriceAlert[]>("/price-alerts");
+    return data;
+  },
+  create: async (alert: { commodity: string; state?: string; target_price: number }) => {
+    const { data } = await api.post<PriceAlert>("/price-alerts", alert);
+    return data;
+  },
+  delete: async (id: number) => {
+    await api.delete(`/price-alerts/${id}`);
+  },
+  toggle: async (id: number) => {
+    const { data } = await api.put<{ is_active: boolean }>(`/price-alerts/${id}/toggle`);
+    return data;
+  },
+};
+
+export interface Rating {
+  id: number;
+  from_user_id: string;
+  to_user_id: string;
+  trip_id?: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
+
+export const ratingsApi = {
+  getReceived: async () => {
+    const { data } = await api.get<Rating[]>("/ratings/received");
+    return data;
+  },
+  getGiven: async () => {
+    const { data } = await api.get<Rating[]>("/ratings/given");
+    return data;
+  },
+  create: async (rating: { to_user_id: string; trip_id?: string; rating: number; comment?: string }) => {
+    const { data } = await api.post<Rating>("/ratings", rating);
+    return data;
+  },
+  getUserStats: async (userId: string) => {
+    const { data } = await api.get<{ average: number; count: number }>(`/ratings/user/${userId}`);
+    return data;
+  },
+};
+
+export interface DriverStatus {
+  online: boolean;
+  available_for?: string;
+}
+
+export const driverApi = {
+  getStatus: async () => {
+    const { data } = await api.get<DriverStatus>("/driver/status");
+    return data;
+  },
+  updateStatus: async (status: { online: boolean; available_for?: string }) => {
+    const { data } = await api.put<DriverStatus>("/driver/status", status);
+    return data;
+  },
+};

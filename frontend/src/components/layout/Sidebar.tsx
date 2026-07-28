@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Package, Plus, Truck, MapPin, Users,
   IndianRupee, BarChart3, Settings, Wheat, Clock, History, Wallet,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Bell, TrendingUp, Star,
 } from "lucide-react";
 
 interface NavItem {
@@ -23,6 +23,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "My Loads", href: "/dashboard/loads", icon: Package, roles: ["farmer"] },
   { label: "My Trips", href: "/dashboard/trips", icon: Truck, roles: ["farmer"] },
   { label: "Payments", href: "/dashboard/payments", icon: IndianRupee, roles: ["farmer"] },
+  { label: "Notifications", href: "/dashboard/notifications", icon: Bell, roles: ["farmer", "driver", "admin", "fpo"] },
+  { label: "Price Alerts", href: "/dashboard/price-alerts", icon: TrendingUp, roles: ["farmer", "fpo"] },
+  { label: "Ratings", href: "/dashboard/ratings", icon: Star, roles: ["farmer", "driver"] },
   { label: "Active Trips", href: "/dashboard/trips/active", icon: Truck, roles: ["driver"] },
   { label: "Trip History", href: "/dashboard/trips/history", icon: History, roles: ["driver"] },
   { label: "Earnings", href: "/dashboard/earnings", icon: Wallet, roles: ["driver"] },

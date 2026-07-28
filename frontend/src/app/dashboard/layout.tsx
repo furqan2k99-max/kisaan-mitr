@@ -75,6 +75,9 @@ export default function DashboardLayout({
         { prefix: "/dashboard/payments", roles: ["farmer", "fpo", "admin"] },
         { prefix: "/dashboard/mandi-prices", roles: ["farmer", "fpo", "admin", "driver"] },
         { prefix: "/dashboard/settings", roles: ["farmer", "fpo", "admin", "driver"] },
+        { prefix: "/dashboard/notifications", roles: ["farmer", "fpo", "admin", "driver"] },
+        { prefix: "/dashboard/price-alerts", roles: ["farmer", "fpo", "admin", "driver"] },
+        { prefix: "/dashboard/ratings", roles: ["farmer", "fpo", "admin", "driver"] },
       ];
 
       const match = allow.find((r) => pathname.startsWith(r.prefix));

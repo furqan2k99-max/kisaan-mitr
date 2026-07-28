@@ -25,7 +25,18 @@ import {
   Users,
   BarChart3,
   Clock,
+  Cloud,
+  Droplets,
+  Wind,
 } from "lucide-react";
+
+interface WeatherData {
+  temp: number;
+  condition: string;
+  humidity: number;
+  windSpeed: number;
+  location: string;
+}
 
 const DARK_EARTHY_BG = "bg-[#0f2318]";
 
@@ -98,6 +109,7 @@ export default function FarmerDashboardPage() {
   const [activeLoads, setActiveLoads] = useState(0);
   const [totalSaved, setTotalSaved] = useState(0);
   const [poolEfficiency, setPoolEfficiency] = useState(0);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -134,9 +146,21 @@ export default function FarmerDashboardPage() {
         setLoading(false);
       }
     };
+
+    const fetchWeather = async () => {
+      // Mock weather data - in production, use a weather API
+      setWeather({
+        temp: 28,
+        condition: "Partly Cloudy",
+        humidity: 65,
+        windSpeed: 12,
+        location: "Mysuru, Karnataka"
+      });
+    };
     
     if (isAuthenticated) {
       fetchLoads();
+      fetchWeather();
     }
   }, [isAuthenticated]);
 
@@ -380,7 +404,7 @@ export default function FarmerDashboardPage() {
               </div>
             ))
           ) : (
-            <div className="text-center py-8 border border-gray-700 rounded-2xl bg-gray-800">
+            <div className="text-center py-8 border border-[#1e4029] rounded-2xl bg-[#162d1e]">
               <Package className="h-8 w-8 text-gray-500 mx-auto mb-2" />
               <p className="text-gray-400">No loads yet</p>
               <p className="text-gray-500 text-sm">Create your first load request</p>
@@ -388,9 +412,37 @@ export default function FarmerDashboardPage() {
           )}
         </div>
 
+        {/* Weather Widget */}
+        {weather && (
+          <div className="p-5 rounded-2xl border border-[#1e4029] bg-[#162d1e]" style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-500/20">
+                  <Cloud className="h-7 w-7 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white">{weather.temp}°C</p>
+                  <p className="text-sm text-gray-400">{weather.location}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-200">{weather.condition}</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <Droplets className="h-3 w-3" /> {weather.humidity}%
+                  </span>
+                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                    <Wind className="h-3 w-3" /> {weather.windSpeed} km/h
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Voice Input Section - Glass Card */}
         <div 
-          className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl"
+          className="rounded-3xl border border-[#1e4029] bg-[#162d1e] backdrop-blur-xl"
           style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)" }}
         >
           <div className="p-6">

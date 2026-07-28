@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.models.database import init_db, engine, get_db
-from app.routers import auth, load_requests, trips, pooling, payments, admin, mandi_prices
+from app.routers import auth, load_requests, trips, pooling, payments, admin, mandi_prices, notifications, price_alerts, ratings, driver_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -154,6 +154,10 @@ app.include_router(pooling.router, prefix="/api/v1")
 app.include_router(payments.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(mandi_prices.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(price_alerts.router, prefix="/api/v1")
+app.include_router(ratings.router, prefix="/api/v1")
+app.include_router(driver_settings.router, prefix="/api/v1")
 
 
 # ── Public Endpoints ─────────────────────────────────────────────────────────

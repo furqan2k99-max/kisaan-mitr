@@ -84,12 +84,18 @@ class User(Base):
     profile_image_url = Column(Text, nullable=True)
     language_preference = Column(String(10), default="en")
     is_active = Column(Boolean, default=True)
+    driver_online = Column(Boolean, default=False)
+    driver_available_for = Column(String(50), nullable=True)  # e.g., "same_day", "next_day"
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     load_requests = relationship("LoadRequest", back_populates="farmer")
     truck = relationship("Truck", back_populates="driver", uselist=False)
     payments = relationship("Payment", back_populates="user")
+    notifications = relationship("Notification", back_populates="user")
+    price_alerts = relationship("PriceAlert", back_populates="user")
+    ratings_received = relationship("Rating", foreign_keys="Rating.to_user_id", back_populates="to_user")
+    ratings_given = relationship("Rating", foreign_keys="Rating.from_user_id", back_populates="from_user")
 
 
 class Truck(Base):
@@ -195,6 +201,7 @@ class Trip(Base):
     truck = relationship("Truck", back_populates="trips")
     trip_loads = relationship("TripLoad", back_populates="trip")
     payments = relationship("Payment", back_populates="trip")
+    ratings = relationship("Rating", back_populates="trip")
 
 
 class TripLoad(Base):
@@ -233,3 +240,48 @@ class Payment(Base):
     user = relationship("User", back_populates="payments")
     load_request = relationship("LoadRequest", back_populates="payments")
     trip = relationship("Trip", back_populates="payments")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String(50), default="info")  # info, success, warning, error
+    read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="notifications")
+
+
+class PriceAlert(Base):
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    commodity = Column(String(100), nullable=False)
+    state = Column(String(100), nullable=True)
+    target_price = Column(Numeric(10, 2), nullable=False)
+    is_active = Column(Boolean, default=True)
+    triggered_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="price_alerts")
+
+
+class Rating(Base):
+    __tablename__ = "ratings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    from_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    to_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    trip_id = Column(UUID(as_uuid=True), ForeignKey("trips.id"), nullable=True)
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    from_user = relationship("User", foreign_keys=[from_user_id], back_populates="ratings_given")
+    to_user = relationship("User", foreign_keys=[to_user_id], back_populates="ratings_received")
+    trip = relationship("Trip", back_populates="ratings")
