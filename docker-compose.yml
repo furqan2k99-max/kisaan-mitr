@@ -3,9 +3,9 @@ services:
     image: postgis/postgis:15-3.4
     container_name: kisaan-mitr-db
     environment:
-      POSTGRES_USER: agrpool
-      POSTGRES_PASSWORD: agrpool123
-      POSTGRES_DB: kisaan_mitr
+      POSTGRES_USER: ${POSTGRES_USER:-agrpool}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agrpool123}
+      POSTGRES_DB: ${POSTGRES_DB:-kisaan_mitr}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -24,8 +24,8 @@ services:
       dockerfile: Dockerfile
     container_name: kisaan-mitr-backend
     environment:
-      DATABASE_URL: postgresql://agrpool:agrpool123@db:5432/kisaan_mitr
-      SECRET_KEY: kisaan-mitr-production-secret-key-2024
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agrpool}:${POSTGRES_PASSWORD:-agrpool123}@db:5432/${POSTGRES_DB:-kisaan_mitr}
+      SECRET_KEY: ${SECRET_KEY:-kisaan-mitr-production-secret-key-2024}
       DEBUG: "false"
       BHASHINI_API_KEY: ${BHASHINI_API_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
