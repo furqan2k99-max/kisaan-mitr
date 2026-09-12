@@ -135,6 +135,30 @@ services:
     networks:
       - kisaan-network
 
+  tests:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kisaan-mitr-tests
+    environment:
+      DATABASE_URL: "sqlite:///:memory:"
+      SECRET_KEY: "test-secret-key-for-unit-tests-minimum-32-chars-ok"
+      DEBUG: "false"
+      BHASHINI_API_KEY: ""
+      GOOGLE_MAPS_API_KEY: ""
+      RAZORPAY_KEY_ID: ""
+      RAZORPAY_KEY_SECRET: ""
+      RAZORPAY_WEBHOOK_SECRET: ""
+      AGMARKNET_API_KEY: ""
+    profiles:
+      - testing
+    entrypoint: ["pytest", "tests/", "-v", "--tb=short", "--cov=app", "--cov-report=term-missing", "--no-header"]
+    volumes:
+      - ./backend/tests:/app/tests:ro
+    working_dir: /app
+    networks:
+      - kisaan-network
+
 volumes:
   postgres_data:
   jenkins_data:
