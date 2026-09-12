@@ -30,6 +30,7 @@ pipeline {
                 sh '''
                     docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/
                     docker run --rm \
+                        --entrypoint sh \
                         -e DATABASE_URL="sqlite:///:memory:" \
                         -e SECRET_KEY="ci-test-secret-key-for-pipeline-only-ok" \
                         -e AGMARKNET_API_KEY="" \
@@ -39,9 +40,9 @@ pipeline {
                         -e RAZORPAY_KEY_ID="" \
                         -e RAZORPAY_KEY_SECRET="" \
                         -e RAZORPAY_WEBHOOK_SECRET="" \
-                        -v $(pwd)/backend/test-results.xml:/app/test-results.xml \
+                        -v "$(pwd)/backend/test-results.xml:/app/test-results.xml" \
                         kisaan-mitr-tests \
-                        sh -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=xml:/app/coverage.xml --cov-report=term-missing --junit-xml=/app/test-results.xml"
+                        -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=xml:/app/coverage.xml --cov-report=term-missing --junit-xml=/app/test-results.xml"
                 '''
             }
             post {
