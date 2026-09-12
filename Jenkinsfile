@@ -43,7 +43,7 @@ pipeline {
                         -v "\${WORKSPACE}/backend/tests:/app/tests" \
                         -v "\${WORKSPACE}/backend/pytest.ini:/app/pytest.ini" \
                         kisaan-mitr-tests \
-                        -c "pip install -q pytest pytest-asyncio pytest-cov; pytest tests/ -v --cov=app --cov-report=term-missing"
+                        -c 'pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=term-missing'
                 """
             }
             post {
