@@ -42,16 +42,11 @@ pipeline {
                         -e RAZORPAY_WEBHOOK_SECRET="" \
                         -v "\${WORKSPACE}/backend/tests:/app/tests" \
                         -v "\${WORKSPACE}/backend/pytest.ini:/app/pytest.ini" \
-                        -v "\${WORKSPACE}/backend:/app/output" \
                         kisaan-mitr-tests \
-                        -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=term-missing --junit-xml=/app/output/test-results.xml"
+                        -c "pip install -q pytest pytest-asyncio pytest-cov; pytest tests/ -v --cov=app --cov-report=term-missing"
                 """
             }
             post {
-                always {
-                    archiveArtifacts artifacts: 'backend/test-results.xml', allowEmptyArchive: true
-                    junit allowEmptyResults: true, testResults: 'backend/test-results.xml'
-                }
                 failure {
                     echo 'Tests failed — stopping pipeline'
                 }
