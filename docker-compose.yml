@@ -123,7 +123,9 @@ services:
       - kisaan-network
 
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
     container_name: kisaan-mitr-jenkins
     ports:
       - "8080:8080"

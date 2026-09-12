@@ -1,41 +1,124 @@
 pipeline {
     agent any
+
+    environment {
+        COMPOSE_PROJECT_NAME = 'kisaan-mitr'
+        DOCKER_BUILDKIT = '1'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                echo 'Code checked out from GitHub successfully'
-                sh 'ls -la'
+                echo 'Checking out latest code...'
+                checkout scm
+                sh 'git log --oneline -5'
             }
         }
-        stage('Build') {
+
+        stage('Validate Environment') {
             steps {
-                echo 'Building Kisaan Mitr...'
-                sh 'find . -name "package.json" -maxdepth 2 | head -5'
+                echo 'Validating required environment variables...'
+                sh '''
+                    test -f .env || { echo ".env file missing — copy from .env.example"; exit 1; }
+                    grep -q "SECRET_KEY" .env || { echo "SECRET_KEY missing in .env"; exit 1; }
+                    grep -q "AGMARKNET_API_KEY" .env || { echo "AGMARKNET_API_KEY missing in .env"; exit 1; }
+                    echo "Environment validation passed"
+                '''
             }
         }
-        stage('Test') {
+
+        stage('Run Tests') {
             steps {
-                echo 'Running checks...'
-                sh 'find . -name "*.py" -maxdepth 3 | wc -l'
-                sh 'find . -name "*.tsx" -maxdepth 4 | wc -l'
+                echo 'Running test suite...'
+                sh '''
+                    docker compose --profile testing run --rm tests \
+                        pytest tests/ -v \
+                        --cov=app \
+                        --cov-report=xml:/app/coverage.xml \
+                        --cov-report=term-missing \
+                        --junit-xml=/app/test-results.xml
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'backend/test-results.xml', allowEmptyArchive: true
+                    junit allowEmptyResults: true, testResults: 'backend/test-results.xml'
+                }
+                failure {
+                    echo 'Tests failed — stopping pipeline'
+                }
             }
         }
+
+        stage('Build Images') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Building Docker images...'
+                sh 'docker compose build --no-cache backend frontend'
+            }
+        }
+
         stage('Deploy') {
+            when {
+                branch 'main'
+            }
             steps {
-                echo 'Kisaan Mitr is deployed via Docker Compose!'
-                echo 'Frontend: http://localhost:3000'
-                echo 'Backend: http://localhost:8000'
-                echo 'Jenkins: http://localhost:8080'
+                echo 'Deploying services...'
+                sh '''
+                    docker compose up -d --remove-orphans
+                    echo "Waiting for services to initialise..."
+                    sleep 20
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Verifying deployment...'
+                sh '''
+                    curl -sf http://localhost:8000/health || \
+                        { echo "Backend health check failed"; exit 1; }
+
+                    curl -sf http://localhost:3000 > /dev/null || \
+                        { echo "Frontend health check failed"; exit 1; }
+
+                    echo "All services healthy"
+                '''
             }
         }
     }
+
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo """
+            Pipeline SUCCESS
+            Branch:  ${env.BRANCH_NAME}
+            Build:   #${env.BUILD_NUMBER}
+            Duration: ${currentBuild.durationString}
+            """
         }
         failure {
-            echo 'Pipeline failed — check logs above'
+            echo """
+            Pipeline FAILED
+            Branch:  ${env.BRANCH_NAME}
+            Build:   #${env.BUILD_NUMBER}
+            Stage:   ${env.STAGE_NAME}
+            Logs:    ${env.BUILD_URL}
+            """
+        }
+        always {
+            echo 'Pipeline complete.'
         }
     }
 }
-
