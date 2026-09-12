@@ -8,6 +8,12 @@ import { cn } from "@/lib/utils";
 
 type LangCode = "hi-IN" | "kn-IN" | "en-IN";
 
+const LANGUAGES: { code: LangCode; label: string; native: string }[] = [
+  { code: "hi-IN", label: "Hindi", native: "हिन्दी" },
+  { code: "kn-IN", label: "Kannada", native: "ಕನ್ನಡ" },
+  { code: "en-IN", label: "English", native: "English" },
+];
+
 interface VoiceBookingAgentProps {
   onTranscriptReady: (transcript: string) => void;
   onClose?: () => void;

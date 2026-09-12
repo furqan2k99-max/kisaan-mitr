@@ -417,6 +417,8 @@ export interface MandiPrice {
 export interface MandiPricesResponse {
   prices: MandiPrice[];
   count: number;
+  last_updated?: string;
+  message?: string;
 }
 
 export const mandiPricesApi = {
