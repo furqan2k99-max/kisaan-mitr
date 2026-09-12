@@ -29,6 +29,7 @@ pipeline {
                 echo 'Running test suite...'
                 sh 'docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/'
                 sh """
+                    docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/
                     docker run --rm \
                         --entrypoint sh \
                         -e DATABASE_URL="sqlite:///:memory:" \
@@ -42,8 +43,10 @@ pipeline {
                         -e RAZORPAY_WEBHOOK_SECRET="" \
                         -v "\${WORKSPACE}/backend/tests:/app/tests" \
                         -v "\${WORKSPACE}/backend/pytest.ini:/app/pytest.ini" \
-                        kisaan-mitr-tests \
-                        -c 'pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=term-missing'
+                        kisaan-mitr-tests <<'EOF'
+pip install -q pytest pytest-asyncio pytest-cov
+pytest tests/ -v --cov=app --cov-report=term-missing
+EOF
                 """
             }
             post {
