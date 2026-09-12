@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/useAppStore";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, voiceBookingApi, ParsedIntent, VoiceBookingData } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { VoiceInput } from "@/components/VoiceInput";
+import VoiceBookingAgent from "@/components/VoiceBookingAgent";
+import VoiceBookingConfirmation from "@/components/VoiceBookingConfirmation";
 import {
   Home,
   Truck,
@@ -28,6 +30,10 @@ import {
   Cloud,
   Droplets,
   Wind,
+  Mic,
+  X,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 
 interface WeatherData {
@@ -111,6 +117,38 @@ export default function FarmerDashboardPage() {
   const [poolEfficiency, setPoolEfficiency] = useState(0);
   const [weather, setWeather] = useState<WeatherData | null>(null);
 
+  // Voice Booking Agent state
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceStep, setVoiceStep] = useState<"record" | "confirm" | "success">("record");
+  const [voiceTranscriptText, setVoiceTranscriptText] = useState("");
+  const [parsedIntent, setParsedIntent] = useState<ParsedIntent | null>(null);
+  const [bookingData, setBookingData] = useState<VoiceBookingData | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  
+  // Proactive geolocation
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Fetch geolocation on mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation not supported");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationError("Location permission denied. Please enable in browser settings.");
+        } else {
+          setLocationError("Could not get location");
+        }
+      },
+      { timeout: 10000, maximumAge: 0 }
+    );
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/login");
@@ -166,6 +204,78 @@ export default function FarmerDashboardPage() {
 
   const handleVoiceResult = (transcript: string) => {
     setVoiceTranscript(transcript);
+  };
+
+  // ── Voice Booking Agent Handlers ────────────────────────────────────────
+
+  /** Step 2: User finished speaking → parse intent via Gemini */
+  const handleVoiceTranscriptReady = async (transcript: string) => {
+    setVoiceTranscriptText(transcript);
+    setVoiceLoading(true);
+    setVoiceError(null);
+
+    try {
+      const langCode = "hi"; // Default to Hindi; could be derived from selection
+      const result = await voiceBookingApi.parseIntent(transcript, langCode);
+      setParsedIntent(result.intent);
+
+      // Use pre-fetched geolocation
+      const booking = await voiceBookingApi.createBooking(result.intent, userLocation || undefined);
+      setBookingData(booking);
+      setVoiceStep("confirm");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (typeof detail === "string") {
+        setVoiceError(detail);
+      } else if (detail?.error) {
+        setVoiceError(detail.error);
+      } else {
+        setVoiceError("Failed to process voice booking. Please try again.");
+      }
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  /** Step 4: User confirmed booking */
+  const handleConfirmBooking = async () => {
+    if (!bookingData) return;
+    setVoiceLoading(true);
+    try {
+      await voiceBookingApi.confirmBooking(bookingData.booking_id);
+      setVoiceStep("success");
+      // Refresh loads list
+      setTimeout(() => {
+        router.push("/dashboard/loads");
+      }, 2000);
+    } catch {
+      setVoiceError("Failed to confirm booking. Please try again.");
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  /** Cancel voice booking */
+  const handleCancelBooking = async () => {
+    if (bookingData?.booking_id) {
+      try {
+        await voiceBookingApi.cancelBooking(bookingData.booking_id);
+      } catch {
+        // Ignore cancel errors
+      }
+    }
+    resetVoiceBooking();
+  };
+
+  /** Reset voice booking state */
+  const resetVoiceBooking = () => {
+    setShowVoiceModal(false);
+    setVoiceStep("record");
+    setVoiceTranscriptText("");
+    setParsedIntent(null);
+    setBookingData(null);
+    setVoiceLoading(false);
+    setVoiceError(null);
   };
 
   if (!isAuthenticated) return null;
@@ -255,6 +365,17 @@ export default function FarmerDashboardPage() {
                 <span className="text-white text-sm font-medium">{poolEfficiency}% pool eff.</span>
               </div>
             </div>
+
+            {/* Voice Booking Button */}
+            <button
+              onClick={() => setShowVoiceModal(true)}
+              className="mt-4 w-full flex items-center justify-center gap-3 px-5 py-3 rounded-xl bg-white/15 hover:bg-white/20 border border-white/20 text-white font-semibold transition-all duration-300 hover:scale-[1.02]"
+              style={{ boxShadow: "0 4px 20px rgba(255,255,255,0.1)" }}
+            >
+              <Mic className="h-5 w-5" />
+              Book by Voice
+              <span className="text-xs bg-green-500/30 px-2 py-0.5 rounded-full">AI</span>
+            </button>
           </div>
         </div>
 
@@ -471,6 +592,90 @@ export default function FarmerDashboardPage() {
       </main>
 
       <GlassNav active="Home" />
+
+      {/* ── Voice Booking Modal ─────────────────────────────────────── */}
+      {showVoiceModal && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={voiceStep === "record" && !voiceLoading ? resetVoiceBooking : undefined}
+          />
+
+          {/* Modal */}
+          <div
+            className="relative w-full max-w-md bg-[#0f2318] border border-white/10 rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto"
+            style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.5)" }}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-white/5 bg-[#0f2318]">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <Mic className="h-5 w-5 text-green-400" />
+                {voiceStep === "record" && "Voice Booking"}
+                {voiceStep === "confirm" && "Confirm Booking"}
+                {voiceStep === "success" && "Booking Created!"}
+              </h3>
+              <button
+                onClick={voiceStep === "record" && !voiceLoading ? resetVoiceBooking : undefined}
+                className="p-2 rounded-lg hover:bg-white/10 text-gray-400"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+              {/* Step 1: Voice Recording */}
+              {voiceStep === "record" && (
+                <>
+                  {voiceLoading ? (
+                    <div className="py-12 text-center space-y-4">
+                      <Loader2 className="h-12 w-12 text-green-400 mx-auto animate-spin" />
+                      <p className="text-white font-medium">Processing your voice...</p>
+                      <p className="text-gray-400 text-sm">AI is understanding your request</p>
+                    </div>
+                  ) : (
+                    <VoiceBookingAgent onTranscriptReady={handleVoiceTranscriptReady} />
+                  )}
+                  {voiceError && (
+                    <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                      {voiceError}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Step 2: Confirmation */}
+              {voiceStep === "confirm" && bookingData && (
+                <VoiceBookingConfirmation
+                  bookingData={bookingData}
+                  onConfirm={handleConfirmBooking}
+                  onCancel={handleCancelBooking}
+                  isConfirming={voiceLoading}
+                />
+              )}
+
+              {/* Step 3: Success */}
+              {voiceStep === "success" && (
+                <div className="py-12 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+                    <CheckCircle className="h-10 w-10 text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-lg">Booking Confirmed!</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      ID: #{bookingData?.booking_id?.slice(0, 8)}
+                    </p>
+                    <p className="text-green-400 text-sm mt-2">
+                      Drivers will contact you soon
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

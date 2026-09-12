@@ -531,3 +531,79 @@ export const driverApi = {
     return data;
   },
 };
+
+// ── Voice Booking API ───────────────────────────────────────────────────────
+
+export interface VoiceBookingData {
+  booking_id: string;
+  crop_type: string;
+  weight_kg: number;
+  pickup_date: string;
+  origin: { address: string; lat: number; lon: number };
+  destination_mandi: { name: string; lat: number; lon: number };
+  distance_km: number;
+  estimated_fare: string;
+  pooled_fare_estimate: string;
+  savings_estimate: string;
+  status: string;
+  missing_fields: string[];
+  confidence_score: number;
+}
+
+export interface ParsedIntent {
+  crop_type: string | null;
+  weight_kg: number | null;
+  pickup_date: string | null;
+  origin_location: string | null;
+  destination_mandi: string | null;
+  urgency: string;
+  confidence_score: number;
+  missing_fields: string[];
+  notes: string | null;
+}
+
+export const voiceBookingApi = {
+  /** Transcribe audio using Bhashini fallback */
+  transcribe: async (audioBase64: string, language: string = "hi") => {
+    const { data } = await api.post<{ transcription: string; confidence: number; source: string }>(
+      "/voice-booking/transcribe",
+      { audio_base64: audioBase64, language }
+    );
+    return data;
+  },
+
+  /** Parse transcribed text into structured booking intent */
+  parseIntent: async (transcription: string, language: string = "hi") => {
+    const { data } = await api.post<{ intent: ParsedIntent; transcription: string; language: string }>(
+      "/voice-booking/parse-intent",
+      { transcription, language }
+    );
+    return data;
+  },
+
+  /** Create a pending booking from parsed intent */
+  createBooking: async (parsedIntent: ParsedIntent, userLocation?: { lat: number; lon: number }) => {
+    const { data } = await api.post<VoiceBookingData>(
+      "/voice-booking/create-booking",
+      { parsed_intent: parsedIntent, user_location: userLocation || null }
+    );
+    return data;
+  },
+
+  /** Confirm a pending booking */
+  confirmBooking: async (bookingId: string) => {
+    const { data } = await api.post<{ status: string; booking_id: string; message: string }>(
+      "/voice-booking/confirm-booking",
+      { booking_id: bookingId }
+    );
+    return data;
+  },
+
+  /** Cancel a pending booking */
+  cancelBooking: async (bookingId: string) => {
+    const { data } = await api.delete<{ status: string; booking_id: string; message: string }>(
+      `/voice-booking/cancel-booking/${bookingId}`
+    );
+    return data;
+  },
+};

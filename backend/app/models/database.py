@@ -32,4 +32,4 @@ def get_db():
 
 def init_db():
     """Create all tables from ORM models. Used for dev convenience."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine, checkfirst=True)

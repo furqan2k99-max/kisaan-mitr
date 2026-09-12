@@ -10,10 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Calendar, Package, Loader2, LocateFixed, ArrowLeft, Wheat, Sparkles } from "lucide-react";
+import { MapPin, Calendar, Package, Loader2, LocateFixed, ArrowLeft, Wheat, Sparkles, Mic, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoiceInput } from "@/components/VoiceInput";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import VoiceBookingAgent from "@/components/VoiceBookingAgent";
+import VoiceBookingConfirmation from "@/components/VoiceBookingConfirmation";
+import { voiceBookingApi, ParsedIntent, VoiceBookingData } from "@/lib/api";
 
 const DARK_THEME_BG = "bg-[linear-gradient(135deg,#0d2d1a_0%,#0f2a1d_25%,#1a1200_75%,#1a1200_100%)]";
 const GLASS_CARD = "border border-white/10 bg-white/5 backdrop-blur-xl rounded-2xl";
@@ -72,6 +75,14 @@ export default function NewLoadPage() {
   const [mandis, setMandis] = useState<MandiOption[]>([]);
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
 
+  // Voice booking alternative state
+  const [showVoiceBooking, setShowVoiceBooking] = useState(false);
+  const [voiceStep, setVoiceStep] = useState<"record" | "confirm" | "success">("record");
+  const [parsedIntent, setParsedIntent] = useState<ParsedIntent | null>(null);
+  const [bookingData, setBookingData] = useState<VoiceBookingData | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     weight_kg: "",
     crop_type: "",
@@ -118,6 +129,51 @@ export default function NewLoadPage() {
 
     setTimeout(() => setAutoFilledFields(new Set()), 3000);
   }, []);
+
+  // ── Voice Booking Alternative Handlers ──────────────────────────────────
+
+  const handleVoiceTranscriptReady = async (transcript: string) => {
+    setVoiceLoading(true);
+    setVoiceError(null);
+    try {
+      const result = await voiceBookingApi.parseIntent(transcript, "hi");
+      setParsedIntent(result.intent);
+
+      const loc = location ? { lat: location.lat, lon: location.lng } : undefined;
+      const booking = await voiceBookingApi.createBooking(result.intent, loc);
+      setBookingData(booking);
+      setVoiceStep("confirm");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setVoiceError(typeof detail === "string" ? detail : detail?.error || "Failed to process voice booking");
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  const handleConfirmBooking = async () => {
+    if (!bookingData) return;
+    setVoiceLoading(true);
+    try {
+      await voiceBookingApi.confirmBooking(bookingData.booking_id);
+      setVoiceStep("success");
+      setTimeout(() => router.push("/dashboard/loads"), 2000);
+    } catch {
+      setVoiceError("Failed to confirm booking.");
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    if (bookingData?.booking_id) {
+      try { await voiceBookingApi.cancelBooking(bookingData.booking_id); } catch {}
+    }
+    setShowVoiceBooking(false);
+    setVoiceStep("record");
+    setBookingData(null);
+    setParsedIntent(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +223,65 @@ export default function NewLoadPage() {
         </div>
       </div>
 
+      {/* Voice Booking Alternative Button */}
+      {!showVoiceBooking && (
+        <button
+          onClick={() => setShowVoiceBooking(true)}
+          className="w-full mb-6 flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 text-green-400 font-semibold transition-all duration-300"
+        >
+          <Mic className="h-5 w-5" />
+          Book by Voice instead
+          <span className="text-xs bg-green-500/20 px-2 py-0.5 rounded-full">AI</span>
+        </button>
+      )}
+
+      {/* Voice Booking View */}
+      {showVoiceBooking ? (
+        <Card className={GLASS_CARD}>
+          <CardContent className="p-6">
+            {voiceStep === "record" && (
+              <>
+                {voiceLoading ? (
+                  <div className="py-12 text-center space-y-4">
+                    <Loader2 className="h-12 w-12 text-green-400 mx-auto animate-spin" />
+                    <p className="text-white font-medium">Processing your voice...</p>
+                  </div>
+                ) : (
+                  <VoiceBookingAgent onTranscriptReady={handleVoiceTranscriptReady} />
+                )}
+                {voiceError && (
+                  <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                    {voiceError}
+                  </div>
+                )}
+                <button
+                  onClick={handleCancelBooking}
+                  className="mt-4 w-full text-center text-gray-400 text-sm hover:text-white"
+                >
+                  ← Back to form
+                </button>
+              </>
+            )}
+            {voiceStep === "confirm" && bookingData && (
+              <VoiceBookingConfirmation
+                bookingData={bookingData}
+                onConfirm={handleConfirmBooking}
+                onCancel={handleCancelBooking}
+                isConfirming={voiceLoading}
+              />
+            )}
+            {voiceStep === "success" && (
+              <div className="py-12 text-center space-y-4">
+                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto">
+                  <CheckCircle className="h-10 w-10 text-green-400" />
+                </div>
+                <p className="text-white font-bold text-lg">Booking Confirmed!</p>
+                <p className="text-green-400 text-sm">Redirecting to your loads...</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
       <Card className={GLASS_CARD}>
         <CardHeader 
           className="rounded-t-lg border-b border-white/10"
@@ -359,6 +474,7 @@ export default function NewLoadPage() {
           </form>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

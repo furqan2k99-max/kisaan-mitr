@@ -9,12 +9,49 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agrpool -d kisaan_mitr"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - kisaan-network
+
+  migration:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kisaan-mitr-migration
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-agrpool}:${POSTGRES_PASSWORD:-agrpool123}@db:5432/${POSTGRES_DB:-kisaan_mitr}
+      SECRET_KEY: ${SECRET_KEY:-kisaan-mitr-production-secret-key-2024}
+      DEBUG: "false"
+      BHASHINI_API_KEY: ${BHASHINI_API_KEY:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      AGMARKNET_API_KEY: ${AGMARKNET_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      bash -c "
+        set -e
+        echo 'Waiting for database...'
+        for i in {1..30}; do
+          if python -c \"import psycopg2; psycopg2.connect('postgresql://agrpool:agrpool123@db:5432/kisaan_mitr')\" 2>/dev/null; then
+            echo 'Database ready!'
+            break
+          fi
+          sleep 2
+        done
+        echo 'Running migrations...'
+        /app/scripts/run_migrations.sh
+        echo 'Migrations complete!'
+      "
     networks:
       - kisaan-network
 
@@ -36,18 +73,20 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - kisaan-network
 

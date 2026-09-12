@@ -4,7 +4,9 @@ Fetches live prices from Agmarknet (data.gov.in) API.
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -30,6 +32,29 @@ class MandiPrice(BaseModel):
 class MandiPricesResponse(BaseModel):
     prices: list[MandiPrice]
     count: int
+    message: Optional[str] = None
+    last_updated: Optional[str] = None
+
+
+async def _fetch_prices(params: dict, headers: dict) -> dict:
+    """Fetch prices from Agmarknet API"""
+    logger.info(f"Calling Agmarknet API with params: {params}")
+    try:
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+            response = await client.get(settings.AGMARKNET_API_URL, params=params)
+            logger.info(f"API response status: {response.status_code}")
+            
+            if response.status_code == 401:
+                raise HTTPException(status_code=401, detail="Invalid API key")
+            if response.status_code == 429:
+                raise HTTPException(status_code=429, detail="Rate limit exceeded")
+            
+            response.raise_for_status()
+            return response.json()
+            
+    except httpx.HTTPError as e:
+        logger.error(f"Agmarknet API error: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch mandi prices: {str(e)}")
 
 
 @router.get("/", response_model=MandiPricesResponse)
@@ -49,50 +74,49 @@ async def get_mandi_prices(
         )
 
     import httpx
+    
+    today = datetime.now()
+    week_ago = today - timedelta(days=7)
+    date_range = f"{week_ago.strftime('%d/%m/%Y')}:{today.strftime('%d/%m/%Y')}"
 
-    params = {
+    base_params = {
         "api-key": settings.AGMARKNET_API_KEY,
         "format": "json",
         "limit": limit,
+        "filters[commodity]": commodity,
+        "filters[arrival_date]": date_range,
     }
-
-    if commodity:
-        params[f"filters[commodity]"] = commodity
     if state:
-        params[f"filters[state]"] = state
+        base_params["filters[state]"] = state
     if district:
-        params[f"filters[district]"] = district
+        base_params["filters[district]"] = district
 
-    logger.info(f"Calling Agmarknet API with params: {params}")
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(settings.AGMARKNET_API_URL, params=params)
-            logger.info(f"API response status: {response.status_code}, body: {response.text[:500]}")
-            
-            if response.status_code == 401:
-                raise HTTPException(status_code=401, detail="Invalid API key")
-            
-            if response.status_code == 429:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded")
-                
-            response.raise_for_status()
-            data = response.json()
-            
-    except httpx.HTTPError as e:
-        logger.error(f"Agmarknet API error: {e}, response: {getattr(e, 'response', 'N/A')}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to fetch mandi prices: {str(e)}",
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}, response text: {response.text if 'response' in locals() else 'N/A'}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to fetch mandi prices: {str(e)}",
-        )
-
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    # Attempt 1: with state filter + date range
+    data = await _fetch_prices(base_params, {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
     records = data.get("records", [])
     
+    # Attempt 2: without state filter if empty
+    if not records and state:
+        logger.info(f"No records with state filter, retrying without state filter for {commodity}")
+        retry_params = {k: v for k, v in base_params.items() if k != "filters[state]"}
+        data = await _fetch_prices(retry_params, {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+        records = data.get("records", [])
+
+    if not records:
+        return MandiPricesResponse(
+            prices=[],
+            count=0,
+            message=(
+                f"No price data available for {commodity} this week. "
+                "Agmarknet updates prices after markets close and report. "
+                "Please check back tomorrow."
+            ),
+            last_updated=None
+        )
+
+    # Parse records
     prices = []
     for record in records:
         try:
@@ -110,23 +134,10 @@ async def get_mandi_prices(
             logger.warning(f"Skipping invalid record: {record}, error: {e}")
             continue
 
-    return MandiPricesResponse(prices=prices, count=len(prices))
-
-
-@router.get("/commodities")
-async def get_commodities(
-    current_user=Depends(get_current_active_user),
-):
-    """Get list of available commodities from Agmarknet"""
+    # Sort by arrival_date descending (newest first)
+    prices.sort(key=lambda x: x.arrival_date, reverse=True)
     
-    if not settings.AGMARKNET_API_KEY:
-        return {"commodities": []}
-    
-    return {
-        "commodities": [
-            "Wheat", "Rice", "Maize", "Mustard", "Soybean",
-            "Tomato", "Potato", "Onion", "Garlic", "Ginger",
-            "Banana", "Mango", "Apple", "Grapes", "Orange",
-            "Cotton", "Sugarcane", "Jute", "Tobacco",
-        ]
-    }
+    # Get most recent date for last_updated
+    last_updated = prices[0].arrival_date if prices else None
+
+    return MandiPricesResponse(prices=prices, count=len(prices), last_updated=last_updated)

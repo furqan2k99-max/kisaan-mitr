@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.models.database import init_db, engine, get_db
-from app.routers import auth, load_requests, trips, pooling, payments, admin, mandi_prices, notifications, price_alerts, ratings, driver_settings
+from app.routers import auth, load_requests, trips, pooling, payments, admin, mandi_prices, notifications, price_alerts, ratings, driver_settings, voice_booking
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,23 +29,6 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Kisaan Mitr - AgriPool AI Backend")
-
-    # Enable PostGIS extension
-    try:
-        from sqlalchemy import text
-        with engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-            conn.commit()
-        logger.info("PostGIS extension verified")
-    except Exception as e:
-        logger.warning("Could not verify PostGIS: %s", e)
-
-    # Create tables (dev convenience — Alembic used in production)
-    try:
-        init_db()
-        logger.info("Database tables initialized")
-    except Exception as e:
-        logger.warning("Could not initialize database: %s", e)
 
     # Auto-seed mandis if table is empty
     try:
@@ -158,6 +141,7 @@ app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(price_alerts.router, prefix="/api/v1")
 app.include_router(ratings.router, prefix="/api/v1")
 app.include_router(driver_settings.router, prefix="/api/v1")
+app.include_router(voice_booking.router, prefix="/api/v1")
 
 
 # ── Public Endpoints ─────────────────────────────────────────────────────────

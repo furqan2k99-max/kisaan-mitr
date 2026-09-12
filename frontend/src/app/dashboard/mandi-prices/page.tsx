@@ -8,7 +8,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, TrendingUp, MapPin, Calendar, Search, IndianRupee } from "lucide-react";
+import { Loader2, TrendingUp, MapPin, Calendar, Search, IndianRupee, Info } from "lucide-react";
 
 const DARK_THEME_BG = "bg-[linear-gradient(135deg,#0d2d1a_0%,#0f2a1d_25%,#1a1200_75%,#1a1200_100%)]";
 const GLASS_CARD = "border border-white/10 bg-white/5 backdrop-blur-xl rounded-2xl";
@@ -24,6 +24,13 @@ const STATES = [
   "Madhya Pradesh", "Tamil Nadu", "West Bengal", "Rajasthan", "Haryana",
 ];
 
+interface MandiPricesResponse {
+  prices: MandiPrice[];
+  count: number;
+  message?: string;
+  last_updated?: string;
+}
+
 export default function MandiPricesPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
@@ -32,6 +39,8 @@ export default function MandiPricesPage() {
   const [commodity, setCommodity] = useState("");
   const [state, setState] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -47,10 +56,14 @@ export default function MandiPricesPage() {
     try {
       setIsLoading(true);
       setError(null);
+      setMessage(null);
+      setLastUpdated(null);
       const params: any = { commodity, limit: 20 };
       if (state) params.state = state;
       const data = await mandiPricesApi.getPrices(params);
       setPrices(data.prices);
+      if (data.last_updated) setLastUpdated(data.last_updated);
+      if (data.message) setMessage(data.message);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to fetch prices");
     } finally {
@@ -123,6 +136,21 @@ export default function MandiPricesPage() {
         </CardContent>
       </Card>
 
+      {message && (
+        <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-3">
+          <Info className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-amber-400 text-sm">{message}</p>
+        </div>
+      )}
+
+      {lastUpdated && (
+        <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
+          <Calendar className="h-4 w-4" />
+          <span className="font-medium">Prices as of: {lastUpdated}</span>
+          <span className="text-slate-500">(Sorted: newest first)</span>
+        </div>
+      )}
+
       {prices.length > 0 && (
         <div className="mt-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -170,7 +198,7 @@ export default function MandiPricesPage() {
         </div>
       )}
 
-      {prices.length === 0 && !isLoading && !error && (
+      {prices.length === 0 && !isLoading && !error && !message && (
         <div className="mt-12 text-center">
           <TrendingUp className="h-16 w-16 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400">Select a crop to see live mandi prices</p>
