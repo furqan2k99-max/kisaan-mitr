@@ -30,6 +30,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting Kisaan Mitr - AgriPool AI Backend")
 
+    # Validate critical environment variables on startup
+    if not settings.SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY is not set in environment variables. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+    if len(settings.SECRET_KEY) < 32:
+        raise RuntimeError(
+            "SECRET_KEY is too short (minimum 32 characters). "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
+
     # Auto-seed mandis if table is empty
     try:
         from app.models.database import SessionLocal

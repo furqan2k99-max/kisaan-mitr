@@ -25,7 +25,7 @@ services:
     container_name: kisaan-mitr-migration
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-agrpool}:${POSTGRES_PASSWORD:-agrpool123}@db:5432/${POSTGRES_DB:-kisaan_mitr}
-      SECRET_KEY: ${SECRET_KEY:-kisaan-mitr-production-secret-key-2024}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       DEBUG: "false"
       BHASHINI_API_KEY: ${BHASHINI_API_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
@@ -62,7 +62,7 @@ services:
     container_name: kisaan-mitr-backend
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-agrpool}:${POSTGRES_PASSWORD:-agrpool123}@db:5432/${POSTGRES_DB:-kisaan_mitr}
-      SECRET_KEY: ${SECRET_KEY:-kisaan-mitr-production-secret-key-2024}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       DEBUG: "false"
       BHASHINI_API_KEY: ${BHASHINI_API_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
