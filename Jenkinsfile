@@ -27,8 +27,8 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo 'Running test suite...'
-                sh '''
-                    docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/
+                sh 'docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/'
+                sh """
                     docker run --rm \
                         --entrypoint sh \
                         -e DATABASE_URL="sqlite:///:memory:" \
@@ -40,10 +40,12 @@ pipeline {
                         -e RAZORPAY_KEY_ID="" \
                         -e RAZORPAY_KEY_SECRET="" \
                         -e RAZORPAY_WEBHOOK_SECRET="" \
-                        -v "$(pwd)/backend/test-results.xml:/app/test-results.xml" \
+                        -v "\${WORKSPACE}/backend/tests:/app/tests" \
+                        -v "\${WORKSPACE}/backend/pytest.ini:/app/pytest.ini" \
+                        -v "\${WORKSPACE}/backend:/app/output" \
                         kisaan-mitr-tests \
-                        -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=xml:/app/coverage.xml --cov-report=term-missing --junit-xml=/app/test-results.xml"
-                '''
+                        -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=term-missing --junit-xml=/app/output/test-results.xml"
+                """
             }
             post {
                 always {
@@ -62,9 +64,7 @@ pipeline {
             }
             steps {
                 echo 'Building Docker images...'
-                sh '''
-                    docker compose build --no-cache backend frontend
-                '''
+                sh 'docker compose build --no-cache backend frontend'
             }
         }
 
