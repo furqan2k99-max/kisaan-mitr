@@ -4,6 +4,9 @@ pipeline {
     environment {
         COMPOSE_PROJECT_NAME = 'kisaan-mitr'
         DOCKER_BUILDKIT = '1'
+        DATABASE_URL = 'sqlite:///:memory:'
+        SECRET_KEY = 'ci-test-secret-key-for-pipeline-only-ok'
+        AGMARKNET_API_KEY = ''
     }
 
     options {
@@ -21,28 +24,24 @@ pipeline {
             }
         }
 
-        stage('Validate Environment') {
-            steps {
-                echo 'Validating required environment variables...'
-                sh '''
-                    test -f .env || { echo ".env file missing — copy from .env.example"; exit 1; }
-                    grep -q "SECRET_KEY" .env || { echo "SECRET_KEY missing in .env"; exit 1; }
-                    grep -q "AGMARKNET_API_KEY" .env || { echo "AGMARKNET_API_KEY missing in .env"; exit 1; }
-                    echo "Environment validation passed"
-                '''
-            }
-        }
-
         stage('Run Tests') {
             steps {
                 echo 'Running test suite...'
                 sh '''
-                    docker compose --profile testing run --rm tests \
-                        pytest tests/ -v \
-                        --cov=app \
-                        --cov-report=xml:/app/coverage.xml \
-                        --cov-report=term-missing \
-                        --junit-xml=/app/test-results.xml
+                    docker build -t kisaan-mitr-tests -f backend/Dockerfile backend/
+                    docker run --rm \
+                        -e DATABASE_URL="sqlite:///:memory:" \
+                        -e SECRET_KEY="ci-test-secret-key-for-pipeline-only-ok" \
+                        -e AGMARKNET_API_KEY="" \
+                        -e DEBUG="false" \
+                        -e BHASHINI_API_KEY="" \
+                        -e GOOGLE_MAPS_API_KEY="" \
+                        -e RAZORPAY_KEY_ID="" \
+                        -e RAZORPAY_KEY_SECRET="" \
+                        -e RAZORPAY_WEBHOOK_SECRET="" \
+                        -v $(pwd)/backend/test-results.xml:/app/test-results.xml \
+                        kisaan-mitr-tests \
+                        sh -c "pip install -q pytest pytest-asyncio pytest-cov && pytest tests/ -v --cov=app --cov-report=xml:/app/coverage.xml --cov-report=term-missing --junit-xml=/app/test-results.xml"
                 '''
             }
             post {
@@ -62,7 +61,9 @@ pipeline {
             }
             steps {
                 echo 'Building Docker images...'
-                sh 'docker compose build --no-cache backend frontend'
+                sh '''
+                    docker compose build --no-cache backend frontend
+                '''
             }
         }
 
